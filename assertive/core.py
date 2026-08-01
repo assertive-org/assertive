@@ -126,6 +126,22 @@ class InvertedCriteria(Criteria):
 
 
 class is_eq(Criteria):
+    """
+    Match values that are equal to ``value``.
+
+    Equality uses normal Python ``==`` semantics, so custom ``__eq__``
+    implementations on the subject are respected.
+
+    Args:
+        value: Value that the subject must equal.
+
+    Example:
+        ```python
+        assert 2 == is_eq(2)       # passes
+        assert "abc" == is_eq("x") # fails
+        ```
+    """
+
     def __init__(self, value):
         self.value = value
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Use Assertive"
+  short_description: "Discover and write Assertive criteria"
+  default_prompt: "Use $use-assertive to select, compose, or create criteria for these Python assertions."
