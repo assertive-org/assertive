@@ -128,6 +128,78 @@ Distinguish composition from nesting: composition combines whole expectations, w
 nesting passes a criteria object into another criterion to match part or a derived property
 of the subject. Parenthesize mixed expressions when operator precedence could be unclear.
 
+## Match mock interactions
+
+Continue to create test doubles with `unittest.mock.Mock` and `AsyncMock`, but replace its
+`assert_called*`, `assert_not_called`, `assert_awaited*`, and `assert_not_awaited` assertion
+methods completely with Assertive criteria. Put the mock method on the left and the
+interaction criterion on the right:
+
+```python
+from unittest.mock import Mock
+
+from assertive import is_gt, starts_with, was_called_with
+
+gateway = Mock()
+gateway.charge("cus_001", amount=2500, currency="USD")
+
+assert gateway.charge == was_called_with(
+    starts_with("cus_"),
+    amount=is_gt(0),
+).once()
+```
+
+Choose the argument-matching behavior deliberately:
+
+- Use `was_called_with` when expected keyword arguments may be a subset of the actual
+  keyword arguments. Positional arguments still match exactly by count and order.
+- Use `was_called_exactly_with` when the complete positional and keyword argument set must
+  match.
+- Use `was_called` when only the total call count matters.
+
+The default count is at least once. Refine it with `.once()`, `.twice()`, `.never()`,
+`.times(n)`, or `.at_least_times(n)`. On `was_called_with` and
+`was_called_exactly_with`, these modifiers count only calls whose arguments match. Use the
+`was_called_once*` and `was_not_called*` convenience criteria when they read more clearly.
+
+Do not confuse one matching call with one total call. For the full semantics of
+`Mock.assert_called_once_with`, compose a total-count criterion with an argument criterion:
+
+```python
+from assertive import was_called, was_called_exactly_with
+
+assert gateway.charge == (
+    was_called().once()
+    & was_called_exactly_with("cus_001", amount=2500, currency="USD").once()
+)
+```
+
+Use `was_called()`, `was_called_once()`, and `was_not_called()` for total call history. Use
+`was_called_with(...)` when any matching call is sufficient; unlike
+`Mock.assert_called_with(...)`, it is not restricted to the most recent call.
+
+Use the corresponding `was_awaited*` criteria for `AsyncMock` await history:
+
+```python
+from unittest.mock import AsyncMock
+
+from assertive import has_key_values, is_gt, was_awaited_once_with
+
+publisher = AsyncMock()
+await publisher.send("/events", payload={"type": "purchase", "amount": 2500})
+
+assert publisher.send == was_awaited_once_with(
+    "/events",
+    payload=has_key_values({"type": "purchase", "amount": is_gt(0)}),
+)
+```
+
+Do not confuse calling an `AsyncMock` with awaiting it; use `was_awaited`,
+`was_awaited_with`, and their exact/convenience variants when the await is the behavior under
+test. Combine `was_awaited().once()` with `was_awaited_exactly_with(...).once()` when both
+one total await and exact arguments are required. Do not call the mock library's assertion
+methods; keep all mock verification in the same `assert mock == criteria` model.
+
 ## Write custom criteria
 
 Choose the smallest suitable approach:
@@ -188,11 +260,38 @@ Decide deliberately whether an unsupported subject type should return `False` or
 `TypeError`, and apply that contract consistently. Keep matching stateless so reuse does not
 change results.
 
-## Add serialization only when needed
+## Skip serialization for most use cases
 
-The default `to_serialized` stores `__dict__`, and the default `from_serialized` calls the
-constructor with that mapping. Override either method when constructor arguments and stored
-state differ. Register downstream custom criteria explicitly with a stable, unique tag:
+Most users do not need serialization. Normal assertions, composition, nesting, mocks, and
+custom criteria used in the same Python process require no serialization. Skip it unless
+criteria must cross a process, network, persistence, or other data boundary.
+
+Serialization exists mainly for frameworks that need to transport or store criteria, such
+as `assertive-mock-api`. Its Python client accepts criteria directly, serializes them into
+JSON-safe HTTP payloads, and the server deserializes them before matching:
+
+```python
+from assertive import has_key_values, is_gte
+from assertive_mock_api_client import MockApiClient
+
+client = MockApiClient("http://localhost:8910")
+
+assert client.confirm_request(
+    path="/orders",
+    query=has_key_values({"limit": is_gte(1)}),
+    times=is_gte(2),
+) is True
+```
+
+Even when using such a framework, prefer its integration and pass criteria directly. Do not
+call `serialize` or `deserialize` in ordinary application tests. Use those functions yourself
+only when building a framework, persistence layer, or raw protocol integration that must
+move criteria across a data boundary.
+
+When adding custom criteria to such an integration, the default `to_serialized` stores
+`__dict__`, and the default `from_serialized` calls the constructor with that mapping.
+Override either method when constructor arguments and stored state differ. Register the
+custom class with a stable, unique tag in every process that serializes or deserializes it:
 
 ```python
 from assertive.serialize import SERIALIZABLE_CRITERIA
@@ -200,8 +299,8 @@ from assertive.serialize import SERIALIZABLE_CRITERIA
 SERIALIZABLE_CRITERIA["$divisible_by"] = is_divisible_by
 ```
 
-Registration is process-local and required before both serialization and deserialization.
-Test a round trip when supporting this feature.
+Registration is process-local. Test a JSON-compatible round trip and ensure both sides of
+the framework boundary share the same tag and implementation.
 
 ## Verify the expectation
 

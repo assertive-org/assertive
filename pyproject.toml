@@ -1,6 +1,6 @@
 [project]
 name = "assertive"
-version = "1.6.1"
+version = "1.7.0"
 description = "A small assertion library for testing"
 authors = [{ name = "Peter Daly" }]
 requires-python = ">=3.10"
