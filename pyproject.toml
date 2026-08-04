@@ -1,6 +1,6 @@
 [project]
 name = "assertive"
-version = "1.7.0"
+version = "1.8.0"
 description = "A small assertion library for testing"
 authors = [{ name = "Peter Daly" }]
 requires-python = ">=3.10"
@@ -31,20 +31,20 @@ dev = [
 
 [tool.hatch.build.targets.sdist]
 include = [
-    ".lugh",
+    ".library-skills",
     "assertive",
     "CHANGES.rst",
 ]
 
 [tool.hatch.build.targets.wheel]
 include = [
-    ".lugh",
+    ".library-skills",
     "assertive",
     "CHANGES.rst",
 ]
 
 [tool.hatch.build.targets.wheel.sources]
-".lugh" = "assertive.lugh"
+".library-skills" = "assertive/.agents"
 
 [build-system]
 requires = ["hatchling"]
